@@ -7,10 +7,12 @@ import "errors"
 import "io/ioutil"
 import "time"
 
-import "crypto/x509"
-import "crypto/x509/pkix"
 import "crypto/rsa"
 import "crypto/rand"
+import "crypto/sha256"
+import "crypto/x509"
+import "crypto/x509/pkix"
+import "encoding/hex"
 import "encoding/pem"
 import "math/big"
 
@@ -114,12 +116,18 @@ func (kp *Keypair) ToPEM(password string, includeCertChain bool) ([]byte, []byte
 	}
 
 	pkey := x509.MarshalPKCS1PrivateKey(kp.key)
-	pkblock, err := x509.EncryptPEMBlock(rand.Reader, "RSA PRIVATE KEY", pkey, []byte(password), x509.PEMCipherDES)
-	for i := range pkey {
-		pkey[i] = 0
-	}
-	if err != nil {
-		return nil, nil, err
+  var pkblock *pem.Block
+	var err error
+	if password != "" {
+		pkblock, err = x509.EncryptPEMBlock(rand.Reader, "RSA PRIVATE KEY", pkey, []byte(password), x509.PEMCipherDES)
+		for i := range pkey {
+			pkey[i] = 0
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		pkblock = &pem.Block{ Type: "RSA PRIVATE KEY", Bytes: pkey}
 	}
 	keyPEM := pem.EncodeToMemory(pkblock)
 
@@ -148,6 +156,14 @@ func (kp *Keypair) ToPKCS12(password string, includeCertChain bool) ([]byte, err
 	}
 
 	return p12, nil
+}
+
+func (kp *Keypair) CertFingerprint() (string, error) {
+	if kp == nil || kp.cert == nil || kp.cert.Raw == nil {
+		return "", errors.New("no certificate available")
+	}
+	b := sha256.Sum256(kp.cert.Raw)
+	return hex.EncodeToString(b[:]), nil
 }
 
 // Authority represents a CA, meaning that it is a certificate configured as a CA cert that may sign
@@ -333,6 +349,7 @@ func (a *Authority) CreateServerKeypair(days int, subj *pkix.Name, bits int) (*K
 	}
 
 	t.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
+	t.DNSNames = []string{subj.CommonName}
 
 	kp, err := a.GenerateKeypair(t, bits)
 	if err != nil {
