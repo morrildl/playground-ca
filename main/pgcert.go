@@ -109,7 +109,14 @@ func doClient(args []string) {
 		log.Fatal("Cannot initialize Authority: ", err)
 	}
 
-	c, err := a.CreateClientKeypair(config.days, network, email, nil, config.bits)
+	subject := &pkix.Name{
+		Country:      []string{config.country},
+		Locality:     []string{config.locality},
+		Province:     []string{config.province},
+		Organization: []string{config.organization},
+		CommonName:   config.commonName,
+	}
+	c, err := a.CreateClientKeypair(config.days, subject, nil, config.bits)
 	if err != nil {
 		log.Fatal("Cannot create client cert: ", err)
 	}
@@ -184,7 +191,7 @@ func doServer(args []string) {
 		Organization: []string{config.organization},
 		CommonName:   config.commonName,
 	}
-	c, err := a.CreateServerKeypair(config.days, subject, config.bits)
+	c, err := a.CreateServerKeypair(config.days, subject, nil, config.bits)
 	if err != nil {
 		log.Fatal("Cannot create client cert: ", err)
 	}

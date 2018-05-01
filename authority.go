@@ -116,7 +116,7 @@ func (kp *Keypair) ToPEM(password string, includeCertChain bool) ([]byte, []byte
 	}
 
 	pkey := x509.MarshalPKCS1PrivateKey(kp.key)
-  var pkblock *pem.Block
+	var pkblock *pem.Block
 	var err error
 	if password != "" {
 		pkblock, err = x509.EncryptPEMBlock(rand.Reader, "RSA PRIVATE KEY", pkey, []byte(password), x509.PEMCipherDES)
@@ -127,7 +127,7 @@ func (kp *Keypair) ToPEM(password string, includeCertChain bool) ([]byte, []byte
 			return nil, nil, err
 		}
 	} else {
-		pkblock = &pem.Block{ Type: "RSA PRIVATE KEY", Bytes: pkey}
+		pkblock = &pem.Block{Type: "RSA PRIVATE KEY", Bytes: pkey}
 	}
 	keyPEM := pem.EncodeToMemory(pkblock)
 
@@ -182,7 +182,7 @@ func (a *Authority) GenerateKeypair(t *Template, bits int) (*Keypair, error) {
 		}
 	}
 
-	switch (bits) {
+	switch bits {
 	case 2048:
 	case 4096:
 	default:
@@ -229,7 +229,7 @@ func CreateRootAuthority(days int, subj *pkix.Name, bits int) (*Authority, error
 		return nil, err
 	}
 
-	switch (bits) {
+	switch bits {
 	case 2048:
 	case 4096:
 	default:
@@ -300,13 +300,7 @@ func (a *Authority) CreateIntermediateAuthority(days int, subj *pkix.Name, bits 
 	return ia, nil
 }
 
-// CreateClientKeypair generates a keypair from scratch using the provided constraints. The
-// resulting certificate will be configured as a client (non-signing) certificate.
-func (a *Authority) CreateClientKeypair(days int, org string, email string, serial *big.Int, bits int) (*Keypair, error) {
-	subject := &pkix.Name{
-		Organization: []string{org},
-		CommonName:   email,
-	}
+func basicTemplate(subject *pkix.Name, days int, serial *big.Int) (*Template, error) {
 	now := time.Now()
 	t := &Template{
 		Subject:               *subject,
@@ -322,6 +316,16 @@ func (a *Authority) CreateClientKeypair(days int, org string, email string, seri
 			return nil, err
 		}
 	}
+	return t, nil
+}
+
+// CreateClientKeypair generates a keypair from scratch using the provided constraints. The
+// resulting certificate will be configured as a client (non-signing) certificate.
+func (a *Authority) CreateClientKeypair(days int, subject *pkix.Name, serial *big.Int, bits int) (*Keypair, error) {
+	t, err := basicTemplate(subject, days, serial)
+	if err != nil {
+		return nil, err
+	}
 
 	t.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
 
@@ -335,21 +339,14 @@ func (a *Authority) CreateClientKeypair(days int, org string, email string, seri
 
 // CreateServerKeypair generates a keypair from scratch, suitable for use as a server identifying
 // key. That is, this could be used for an HTTPS or LDAPS server, etc.
-func (a *Authority) CreateServerKeypair(days int, subj *pkix.Name, bits int) (*Keypair, error) {
-	now := time.Now()
-	t := &Template{
-		Subject:               *subj,
-		NotBefore:             now.Add(-(24 * time.Hour)),
-		NotAfter:              now.Add(time.Duration(days) * 24 * time.Hour),
-		CRLDistributionPoints: []string{"https://ca.playground.global/ca.crl"},
-	}
-	err := t.GenerateSerial()
+func (a *Authority) CreateServerKeypair(days int, subject *pkix.Name, serial *big.Int, bits int) (*Keypair, error) {
+	t, err := basicTemplate(subject, days, serial)
 	if err != nil {
 		return nil, err
 	}
 
+	t.DNSNames = []string{subject.CommonName}
 	t.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
-	t.DNSNames = []string{subj.CommonName}
 
 	kp, err := a.GenerateKeypair(t, bits)
 	if err != nil {
