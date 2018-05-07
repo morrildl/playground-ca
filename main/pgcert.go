@@ -52,7 +52,7 @@ func doFlags() {
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Please run %s with one of these modes:\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "%s [options] client <signing_key> <signing_cert> <email> <network>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "%s [options] client <signing_key> <signing_cert>\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\tGenerates a client (machine) cert good for access to the indicated network, assigned to the indicated user\n\n")
 		fmt.Fprintf(os.Stderr, "%s [options] server <signing_key> <signing_cert>\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\tGenerates a server cert good for use by a TLS server (e.g. RADIUS, HTTPS, LDAP)\n")
@@ -93,15 +93,13 @@ func main() {
 }
 
 func doClient(args []string) {
-	if len(args) != 4 {
+	if len(args) != 2 {
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	rootKeyPath := args[0]
 	rootCertPath := args[1]
-	email := args[2]
-	network := args[3]
 
 	a := &ca.Authority{}
 	err := a.LoadFromPEM(rootCertPath, rootKeyPath, config.signingKeyPassword)
@@ -127,14 +125,14 @@ func doClient(args []string) {
 			log.Fatal("could not generate cert and key: ", err)
 		}
 
-		certName := fmt.Sprintf("%s_%s.crt", network, email)
+		certName := fmt.Sprintf("%s.crt", config.commonName)
 		log.Printf("Writing certificate to '%s'...\n", certName)
 		err = ioutil.WriteFile(certName, certBytes, 0600)
 		if err != nil {
 			log.Fatal("could not write certificate "+certName+": ", err)
 		}
 
-		keyName := fmt.Sprintf("%s_%s.key", network, email)
+		keyName := fmt.Sprintf("%s.key", config.commonName)
 		log.Printf("Writing private key to '%s'...\n", keyName)
 		err = ioutil.WriteFile(keyName, keyBytes, 0600)
 		if err != nil {
@@ -147,19 +145,19 @@ func doClient(args []string) {
 		}
 
 		if config.pkcs12 {
-			keyName := fmt.Sprintf("%s_%s.p12", network, email)
+			keyName := fmt.Sprintf("%s.p12", config.commonName)
 			log.Printf("Writing PKCS12 cert and private key to '%s'...\n", keyName)
 			err = ioutil.WriteFile(keyName, p12Bytes, 0600)
 			if err != nil {
 				log.Fatal("could not write private key: ", err)
 			}
 		} else {
-			mcBytes, err := ca.PKCS12ToMobileConfig(p12Bytes, email, config.outputKeyPassword, "", network)
+			mcBytes, err := ca.PKCS12ToMobileConfig(p12Bytes, config.commonName, config.outputKeyPassword, "", config.organization)
 			if err != nil {
 				log.Fatal("error creating mobileconfig bytes: ", err)
 			}
 
-			keyName := fmt.Sprintf("%s_%s.mobileconfig", network, email)
+			keyName := fmt.Sprintf("%s.mobileconfig", config.commonName)
 			log.Printf("Writing cert and private key to '%s'...\n", keyName)
 			err = ioutil.WriteFile(keyName, mcBytes, 0600)
 			if err != nil {
