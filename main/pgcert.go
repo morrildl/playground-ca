@@ -59,7 +59,7 @@ func doFlags() {
 		fmt.Fprintf(os.Stderr, "\tServer identity is specified via flags (especially -cn)\n\n")
 		fmt.Fprintf(os.Stderr, "%s [options] intca <root_key> <root_cert> <intermediate_key> <intermediate_crt>\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\tGenerates an intermediate CA cert\n\n")
-		fmt.Fprintf(os.Stderr, "%s [options] rootca <root_key> <root_cert>\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "%s [options] rootca <root_key> <root_cert> [domain]\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "\tGenerates a root CA cert\n\n")
 		fmt.Fprintf(os.Stderr, "options:\n")
 		flag.PrintDefaults()
@@ -267,9 +267,14 @@ func doICA(args []string) {
 }
 
 func doRoot(args []string) {
-	if len(args) != 2 || config.country == "" || config.locality == "" || config.organization == "" || config.commonName == "" {
+	if len(args) < 2 || config.country == "" || config.locality == "" || config.organization == "" || config.commonName == "" {
 		flag.Usage()
 		os.Exit(255)
+	}
+
+	domain := ""
+	if len(args) == 3 {
+		domain = args[2]
 	}
 
 	rootKey := scrubPath(args[0])
@@ -292,7 +297,7 @@ func doRoot(args []string) {
 		Organization: []string{config.organization},
 		CommonName:   config.commonName,
 	}
-	a, err := ca.CreateRootAuthority(config.days, subj, config.bits)
+	a, err := ca.CreateRestrictedRootAuthority(config.days, subj, config.bits, domain)
 	if err != nil {
 		log.Fatal("Cannot create root cert: ", err)
 	}

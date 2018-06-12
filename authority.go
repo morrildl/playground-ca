@@ -214,6 +214,13 @@ func (a *Authority) GenerateKeypair(t *Template, bits int) (*Keypair, error) {
 // CreateRootAuthority generates a new root CA Authority and self-signed certificate and key, from
 // the provided template. The certificate is not saved to disk.
 func CreateRootAuthority(days int, subj *pkix.Name, bits int) (*Authority, error) {
+	return CreateRestrictedRootAuthority(days, subj, bits, "")
+}
+
+// CreateRestrictedRootAuthority generates a new root CA Authority and self-signed certificate and
+// key, restricted to the indicated domain, from the provided template. The certificate is not saved
+// to disk.
+func CreateRestrictedRootAuthority(days int, subj *pkix.Name, bits int, domain string) (*Authority, error) {
 	now := time.Now()
 	t := &Template{
 		Subject:               *subj,
@@ -227,6 +234,11 @@ func CreateRootAuthority(days int, subj *pkix.Name, bits int) (*Authority, error
 	err := t.GenerateSerial()
 	if err != nil {
 		return nil, err
+	}
+
+	if domain != "" {
+		t.PermittedDNSDomainsCritical = true
+		t.PermittedDNSDomains = []string{domain}
 	}
 
 	switch bits {
